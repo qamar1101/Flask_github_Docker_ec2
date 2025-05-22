@@ -50,4 +50,4 @@ jobs:
             docker rm flask-app || true
 
             # Run the new container
-            docker run -d --name flask-app -p 80:5000 ${{ env.IMAGE_NAME }}:latest
+            docker run -d --name flask-app -p 80:8080 ${{ env.IMAGE_NAME }}:latest
