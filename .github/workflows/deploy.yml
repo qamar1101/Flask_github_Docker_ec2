@@ -1,49 +1,53 @@
 name: CI/CD Pipeline - Flask Docker EC2
 
-# Trigger the pipeline on every push to the main branch
 on:
   push:
     branches:
       - main
 
-# Set global environment variables
 env:
-  IMAGE_NAME: qamar1101/flask-app                # Docker image name on Docker Hub
-  EC2_HOST: ec2-user@3.94.59.111                 # EC2 username and public IP
-  EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}        # EC2 private key from GitHub Secrets
+  IMAGE_NAME: qamar1101/flask-app
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest                       # Use the latest Ubuntu runner
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code                        # Clone the GitHub repo code
-      uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Set up Docker Buildx                 # Required for building multi-platform images
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Docker Hub                 # Authenticate to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_HUB_PASSWORD }}   # Set this in GitHub Secrets
-        password: ${{ secrets.DOCKER_HUB_USERNAME }}   # Set this in GitHub Secrets
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
-    - name: Build and Push Docker Image          # Build the image and push to Docker Hub
-      uses: docker/build-push-action@v5
-      with:
-        context: .                               # Current directory
-        push: true                               # Push the image after building
-        tags: ${{ env.IMAGE_NAME }}:latest       # Tag the image as latest
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
 
-    - name: Deploy to EC2                        # SSH into EC2 and deploy container
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ env.EC2_HOST }}                # Public IP of EC2
-        username: ec2-user                       # Default EC2 user for Amazon Linux
-        key: ${{ secrets.EC2_PRIVATE_KEY }}      # PEM key content from GitHub Secrets
-        script: |
-          docker pull ${{ env.IMAGE_NAME }}:latest      # Pull latest image
-          docker stop flask-app || true                 # Stop existing container if running
-          docker rm flask-app || true                   # Remove existing container if exists
-          docker run -d --name flask-app -p 80:5000 ${{ env.IMAGE_NAME }}:latest
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            # Log in on EC2 to Docker Hub
+            echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login --username "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+
+            # Pull latest image
+            docker pull ${{ env.IMAGE_NAME }}:latest
+
+            # Stop and remove existing container if running
+            docker stop flask-app || true
+            docker rm flask-app || true
+
+            # Run the new container
+            docker run -d --name flask-app -p 80:5000 ${{ env.IMAGE_NAME }}:latest
